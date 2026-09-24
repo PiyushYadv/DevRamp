@@ -5,6 +5,7 @@ import { LoginPage } from "./pages/LoginPage";
 import { SignupPage } from "./pages/SignupPage";
 import { DashboardLayout } from "./pages/dashboard/DashboardLayout";
 import { WorkspacePage } from "./pages/dashboard/WorkspacePage";
+import { NotFoundPage } from "./pages/NotFoundPage";
 
 export const router = createBrowserRouter([
   {
@@ -17,11 +18,9 @@ export const router = createBrowserRouter([
       {
         path: "dashboard",
         Component: DashboardLayout,
-        children: [
-          { index: true, Component: WorkspacePage },
-        ],
+        children: [{ index: true, Component: WorkspacePage }],
       },
-      { path: "*", Component: HomePage },
+      { path: "*", Component: NotFoundPage },
     ],
   },
 ]);
