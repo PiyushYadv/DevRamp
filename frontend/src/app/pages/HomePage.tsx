@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import {
   ArrowRight,
@@ -14,9 +15,47 @@ import {
   Folder,
   Send,
 } from "lucide-react";
+import {
+  LANDING_QUICK_START,
+  LANDING_REPOSITORY_NAME,
+  LANDING_SUMMARY,
+  LANDING_TECHNOLOGY_TAGS,
+} from "../../features/landing/data/mockLanding";
+import { getCurrentUser, isGithubConnected, logout } from "../../lib/api/auth";
 
 export function HomePage() {
   const navigate = useNavigate();
+  const [user, setUser] = useState(getCurrentUser);
+  const [profileOpen, setProfileOpen] = useState(false);
+  const profileRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const syncUser = () => setUser(getCurrentUser());
+    syncUser();
+    window.addEventListener("devramp-auth-changed", syncUser);
+    return () => window.removeEventListener("devramp-auth-changed", syncUser);
+  }, []);
+
+  useEffect(() => {
+    const closeOnOutsideClick = (event: MouseEvent) => {
+      if (!profileRef.current?.contains(event.target as Node)) setProfileOpen(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setProfileOpen(false);
+    };
+    document.addEventListener("mousedown", closeOnOutsideClick);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("mousedown", closeOnOutsideClick);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, []);
+
+  const handleLogout = () => {
+    logout();
+    setProfileOpen(false);
+    setUser(null);
+  };
 
   const features = [
     {
@@ -76,7 +115,57 @@ export function HomePage() {
             <a href="#" className="hover:text-slate-200 transition-colors">Blog</a>
           </nav>
           <div className="flex items-center gap-3">
-            <button onClick={() => navigate("/login")} className="text-xs text-slate-400 hover:text-slate-200 transition-colors">Sign in</button>
+            {user ? (
+              <div ref={profileRef} className="relative">
+                <button
+                  onClick={() => setProfileOpen((open) => !open)}
+                  aria-label="Open profile menu"
+                  aria-expanded={profileOpen}
+                  title={user.email}
+                  className="w-7 h-7 rounded-full bg-indigo-600 flex items-center justify-center text-[10px] font-semibold text-white hover:bg-indigo-500 transition-colors"
+                >
+                  {user.name.charAt(0).toUpperCase()}
+                </button>
+                {profileOpen && (
+                  <div className="absolute right-0 top-9 z-50 w-60 rounded-lg border border-white/[0.1] bg-[#111827] shadow-xl shadow-black/40 overflow-hidden">
+                    <div className="px-3 py-3 border-b border-white/[0.06]">
+                      <p className="text-xs font-medium text-white truncate">{user.name}</p>
+                      <p className="text-[10px] text-slate-500 truncate">{user.email}</p>
+                    </div>
+                    <button
+                      onClick={() => { setProfileOpen(false); navigate("/dashboard"); }}
+                      className="w-full flex items-center gap-2 px-3 py-2.5 text-xs text-slate-300 hover:bg-white/[0.05] transition-colors text-left"
+                    >
+                      <Terminal className="w-3.5 h-3.5" /> Open dashboard
+                    </button>
+                    <a
+                      href={user.githubUrl ?? "https://github.com"}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="flex items-center gap-2 px-3 py-2.5 text-xs text-slate-300 hover:bg-white/[0.05] transition-colors"
+                    >
+                      <GitBranch className="w-3.5 h-3.5" /> GitHub profile
+                    </a>
+                    <div className="px-3 py-2 border-t border-white/[0.06]">
+                      <div className="flex items-center justify-between text-[10px]">
+                        <span className="text-slate-500">Repository access</span>
+                        <span className={isGithubConnected() ? "text-emerald-400" : "text-slate-600"}>
+                          {isGithubConnected() ? "Connected" : "Not connected"}
+                        </span>
+                      </div>
+                    </div>
+                    <button
+                      onClick={handleLogout}
+                      className="w-full flex items-center gap-2 px-3 py-2.5 text-xs text-red-400 hover:bg-red-500/[0.08] transition-colors text-left border-t border-white/[0.06]"
+                    >
+                      Sign out
+                    </button>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <button onClick={() => navigate("/login")} className="text-xs text-slate-400 hover:text-slate-200 transition-colors">Sign in</button>
+            )}
             <button
               onClick={() => navigate("/signup")}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium transition-colors"
@@ -140,7 +229,7 @@ export function HomePage() {
                 <span className="w-2.5 h-2.5 rounded-full bg-red-500/70" />
                 <span className="w-2.5 h-2.5 rounded-full bg-yellow-500/70" />
                 <span className="w-2.5 h-2.5 rounded-full bg-emerald-500/70" />
-                <span className="ml-2 text-[10px] font-mono text-slate-600">company/core-billing-api — DevRamp</span>
+                <span className="ml-2 text-[10px] font-mono text-slate-600">{LANDING_REPOSITORY_NAME}</span>
               </div>
 
               {/* 3-pane layout mini */}
@@ -211,12 +300,12 @@ export function HomePage() {
                     <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-2.5">
                       <div className="text-[9px] font-semibold text-white mb-1.5">Architecture Summary</div>
                       <div className="flex flex-wrap gap-1 mb-2">
-                        {["Node.js", "PostgreSQL", "Redis", "Prisma"].map((t) => (
+                        {LANDING_TECHNOLOGY_TAGS.map((t) => (
                           <span key={t} className="text-[7px] px-1.5 py-0.5 rounded-full border border-white/[0.08] text-slate-500 font-mono">{t}</span>
                         ))}
                       </div>
                       <p className="text-[8px] text-slate-500 leading-relaxed">
-                        Monolithic NestJS API with RS256 JWT auth, Prisma ORM, and Redis job queuing.
+                        {LANDING_SUMMARY}
                       </p>
                     </div>
 
@@ -241,7 +330,7 @@ export function HomePage() {
                     {/* Commands */}
                     <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-2.5">
                       <div className="text-[9px] font-semibold text-slate-300 mb-1.5">Quick Start</div>
-                      {["git clone git@github.com:company/core-billing-api", "npm install && npx prisma migrate dev", "npm run start:dev"].map((cmd) => (
+                      {LANDING_QUICK_START.map((cmd) => (
                         <div key={cmd} className="flex items-center gap-1.5 py-1 px-2 mb-1 rounded bg-[#0D1117] border border-white/[0.05]">
                           <span className="text-[8px] text-indigo-400 font-mono">$</span>
                           <span className="text-[8px] font-mono text-slate-400 truncate">{cmd}</span>

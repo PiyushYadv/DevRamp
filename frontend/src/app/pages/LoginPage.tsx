@@ -1,52 +1,47 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router";
-import { Terminal, Github, Eye, EyeOff, ArrowRight, AlertCircle } from "lucide-react";
+import { Github, ArrowRight } from "lucide-react";
+import { githubAuth, login } from "../../lib/api/auth";
+import { AuthError } from "../../features/auth/components/AuthError";
+import { PasswordInput } from "../../features/auth/components/PasswordInput";
+import { AuthLayout } from "../../features/auth/components/AuthLayout";
 
 export function LoginPage() {
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email || !password) { setError("Please fill in all fields."); return; }
     setError("");
     setLoading(true);
-    setTimeout(() => { setLoading(false); navigate("/dashboard"); }, 1000);
+    try {
+      await login({ email, password });
+      navigate("/dashboard");
+    } catch {
+      setError("Unable to sign in. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleGitHub = () => {
+  const handleGitHub = async () => {
     setLoading(true);
-    setTimeout(() => { setLoading(false); navigate("/dashboard"); }, 800);
+    try {
+      await githubAuth();
+      navigate("/dashboard");
+    } catch {
+      setError("Unable to continue with GitHub. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
-    <div
-      className="min-h-screen bg-[#0B0F17] flex flex-col items-center justify-center px-4"
-      style={{ fontFamily: "'Inter', sans-serif" }}
-    >
-      {/* Background grid */}
-      <div
-        className="fixed inset-0 pointer-events-none"
-        style={{
-          backgroundImage: "linear-gradient(rgba(99,102,241,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(99,102,241,0.03) 1px, transparent 1px)",
-          backgroundSize: "40px 40px",
-        }}
-      />
-      <div className="fixed top-0 left-1/2 -translate-x-1/2 w-[600px] h-[300px] bg-indigo-500/5 rounded-full blur-3xl pointer-events-none" />
-
-      {/* Logo */}
-      <Link to="/" className="flex items-center gap-2 mb-8 group">
-        <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center">
-          <Terminal className="w-4 h-4 text-white" />
-        </div>
-        <span className="text-base font-semibold text-white">DevRamp</span>
-      </Link>
-
-      {/* Card */}
+    <AuthLayout>
       <div className="relative w-full max-w-sm">
         <div className="rounded-2xl border border-white/[0.08] bg-[#0D1117]/80 backdrop-blur-sm p-8">
           <div className="mb-6">
@@ -73,12 +68,7 @@ export function LoginPage() {
 
           {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-4">
-            {error && (
-              <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/25 text-red-400 text-xs">
-                <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-                {error}
-              </div>
-            )}
+            <AuthError message={error} />
 
             <div>
               <label className="block text-xs text-slate-400 mb-1.5">Email address</label>
@@ -91,30 +81,7 @@ export function LoginPage() {
               />
             </div>
 
-            <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <label className="text-xs text-slate-400">Password</label>
-                <a href="#" className="text-[11px] text-indigo-400 hover:text-indigo-300 transition-colors">
-                  Forgot password?
-                </a>
-              </div>
-              <div className="relative">
-                <input
-                  type={showPassword ? "text" : "password"}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  className="w-full px-3 py-2.5 pr-10 rounded-lg bg-white/[0.04] border border-white/[0.08] text-sm text-slate-200 placeholder-slate-600 outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/25 transition-all"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword((v) => !v)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-600 hover:text-slate-400 transition-colors"
-                >
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
-              </div>
-            </div>
+            <PasswordInput value={password} onChange={setPassword} placeholder="••••••••" />
 
             <button
               type="submit"
@@ -137,6 +104,6 @@ export function LoginPage() {
           </Link>
         </p>
       </div>
-    </div>
+    </AuthLayout>
   );
 }
