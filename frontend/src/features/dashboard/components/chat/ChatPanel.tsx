@@ -1,20 +1,49 @@
-import { useEffect, useState } from "react";
-import { Send, Zap } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { FileCode2, Send, X, Zap } from "lucide-react";
 import { tokenize } from "../../../../utils/tokenize";
 import { CLRS } from "../../constants/workspace";
 import { useChat } from "../../hooks/useChat";
 import { useDashboard } from "../../context/DashboardContext";
 
 function HighlightedCode({ code }: { code: string }) {
-  return <pre className="p-3 text-[11px] font-mono overflow-x-auto leading-relaxed bg-[#0D1117]">{code.split("\n").map((line, lineIndex) => <span key={lineIndex} className="block">{tokenize(line).map((token, tokenIndex) => <span key={tokenIndex} style={{ color: CLRS[token.type] }}>{token.text}</span>)}</span>)}</pre>;
+  return (
+    <pre className="p-3 text-[11px] font-mono overflow-x-auto leading-relaxed bg-[#0D1117]">
+      {code.split("\n").map((line, lineIndex) => (
+        <span key={lineIndex} className="block">
+          {tokenize(line).map((token, tokenIndex) => (
+            <span key={tokenIndex} style={{ color: CLRS[token.type] }}>
+              {token.text}
+            </span>
+          ))}
+        </span>
+      ))}
+    </pre>
+  );
 }
 
 export function ChatPanel() {
-  const { repoName } = useDashboard();
-  const { messages, sendMessage, isLoading } = useChat(repoName || null);
+  const { repoId, selectedFile } = useDashboard();
+  const [fileContext, setFileContext] = useState<string | null>(selectedFile);
+  const { messages, sendMessage, isLoading } = useChat(
+    repoId || null,
+    fileContext,
+  );
   const [input, setInput] = useState("");
   const [width, setWidth] = useState(300);
   const [resizing, setResizing] = useState(false);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const resizeTextarea = () => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+
+    textarea.style.height = "auto";
+    textarea.style.height = `${Math.min(textarea.scrollHeight, 160)}px`;
+  };
+
+  useEffect(() => {
+    setFileContext(selectedFile);
+  }, [selectedFile]);
 
   useEffect(() => {
     if (!resizing) return;
@@ -39,11 +68,21 @@ export function ChatPanel() {
     if (!input.trim()) return;
     const query = input;
     setInput("");
+
+    requestAnimationFrame(() => {
+      if (textareaRef.current) {
+        textareaRef.current.style.height = "auto";
+      }
+    });
+
     sendMessage(query);
   };
 
   return (
-    <aside className="relative shrink-0 flex flex-col bg-[#0D1117] border-l border-white/[0.06]" style={{ width }}>
+    <aside
+      className="relative shrink-0 flex flex-col bg-[#0D1117] border-l border-white/6"
+      style={{ width }}
+    >
       <button
         type="button"
         aria-label="Resize chat panel"
@@ -51,7 +90,7 @@ export function ChatPanel() {
         onPointerDown={() => setResizing(true)}
         className="absolute -left-1 top-0 bottom-0 z-10 w-2 cursor-col-resize hover:bg-indigo-500/50 transition-colors"
       />
-      <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.06] shrink-0">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-white/6 shrink-0">
         <div className="flex items-center gap-2">
           <div className="w-5 h-5 rounded bg-indigo-600 flex items-center justify-center">
             <Zap className="w-3 h-3 text-white" />
@@ -61,7 +100,7 @@ export function ChatPanel() {
           </span>
         </div>
         <span className="text-[9px] px-2 py-0.5 rounded-full bg-indigo-500/10 border border-indigo-500/25 text-indigo-400 font-mono">
-          Full Repo
+          {fileContext ? "File Context" : "Full Repo"}
         </span>
       </div>
 
@@ -117,11 +156,36 @@ export function ChatPanel() {
         ))}
       </div>
 
-      <div className="p-3 border-t border-white/[0.06] shrink-0">
-        <div className="flex items-end gap-2 px-3 py-2 rounded-lg border border-white/[0.08] bg-white/[0.03] focus-within:border-indigo-500/40 transition-colors">
+      <div className="p-3 border-t border-white/6 shrink-0">
+        <div className="flex items-end gap-2 px-3 py-2 rounded-lg border border-white/8 bg-white/3 focus-within:border-indigo-500/40 transition-colors">
+          {fileContext && (
+            <div className="flex items-center gap-1.5 max-w-30 mb-0.5 shrink-0 rounded-md border border-indigo-500/20 bg-indigo-500/8 px-1.5 py-1">
+              <FileCode2 className="w-3 h-3 text-indigo-400 shrink-0" />
+              <span
+                className="text-[9px] font-mono text-indigo-300 truncate"
+                title={fileContext}
+              >
+                {fileContext.split("/").pop()}
+              </span>
+              <button
+                type="button"
+                onClick={() => setFileContext(null)}
+                aria-label="Clear current file context"
+                title="Clear file context"
+                className="text-indigo-400/60 hover:text-indigo-300 shrink-0"
+              >
+                <X className="w-2.5 h-2.5" />
+              </button>
+            </div>
+          )}
+
           <textarea
+            ref={textareaRef}
             value={input}
-            onChange={(e) => setInput(e.target.value)}
+            onChange={(e) => {
+              setInput(e.target.value);
+              resizeTextarea();
+            }}
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault();
@@ -129,9 +193,10 @@ export function ChatPanel() {
               }
             }}
             placeholder="Ask about authentication, data flows, or setup..."
-            rows={2}
-            className="flex-1 bg-transparent text-[11px] text-slate-300 placeholder-slate-600 resize-none outline-none leading-relaxed"
+            rows={1}
+            className="flex-1 min-h-6 max-h-40 bg-transparent text-[11px] text-slate-300 placeholder-slate-600 resize-none overflow-y-auto outline-none leading-5"
           />
+
           <button
             onClick={handleSend}
             disabled={!input.trim() || isLoading}

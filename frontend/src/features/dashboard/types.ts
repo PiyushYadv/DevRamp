@@ -16,6 +16,8 @@ export interface CheckItem {
 }
 
 export interface DashboardContextType {
+  repoId: string;
+  setRepoId: (v: string) => void;
   hasRepo: boolean;
   setHasRepo: (v: boolean) => void;
   repoName: string;

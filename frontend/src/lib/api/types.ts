@@ -51,12 +51,23 @@ export interface Citation {
   line?: number;
   label: string;
 }
+export interface ChatContext {
+  repoId: string;
+  filePath?: string;
+  startLine?: number;
+  endLine?: number;
+  moduleId?: string;
+  selectedSymbol?: string;
+}
+
 export interface ChatMessage {
   id: string;
   role: "user" | "assistant";
   content: string;
   citations?: Citation[];
   code?: string;
+  context?: ChatContext | null;
+  createdAt?: string;
 }
 export interface ModuleSummary {
   n: number;

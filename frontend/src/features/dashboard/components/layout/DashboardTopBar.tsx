@@ -6,7 +6,7 @@ import { getCurrentUser, logout } from "../../../../lib/api/auth";
 
 export function DashboardTopBar() {
   const navigate = useNavigate();
-  const { setHasRepo, setRepoName, setSelectedFile, setSelectedModule } = useDashboard();
+  const { setHasRepo, setRepoId, setRepoName, setSelectedFile, setSelectedModule } = useDashboard();
   const { hasRepo } = useDashboard();
   const user = getCurrentUser();
   const [profileOpen, setProfileOpen] = useState(false);
@@ -30,6 +30,7 @@ export function DashboardTopBar() {
   }, []);
   const goToRepositoryPicker = () => {
     setHasRepo(false);
+    setRepoId("");
     setRepoName("");
     setSelectedFile(null);
     setSelectedModule(null);

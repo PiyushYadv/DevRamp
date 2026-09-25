@@ -6,7 +6,7 @@ import { PublicRepositoryModal } from "../repository/PublicRepositoryModal";
 import { ingestRepository } from "../../../../lib/api/ingest";
 
 export function RepositorySwitcher() {
-  const { hasRepo, repoName, setHasRepo, setRepoName, lastSyncedAt, setLastSyncedAt } = useDashboard();
+  const { hasRepo, repoName, setHasRepo, setRepoId, setRepoName, lastSyncedAt, setLastSyncedAt } = useDashboard();
   const navigate = useNavigate();
   const [syncing, setSyncing] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -33,7 +33,8 @@ export function RepositorySwitcher() {
   };
 
   const handlePublicRepositoryConnect = async (url: string) => {
-    await ingestRepository(url);
+    const result = await ingestRepository(url);
+    setRepoId(result.repoId);
     const parts = url.replace(/\/$/, "").split("/");
     const name = parts.slice(-2).join("/");
     setRepoName(name);

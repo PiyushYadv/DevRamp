@@ -17,7 +17,7 @@ import { useRepositories } from "../../hooks/useRepositories";
 import { updateRepositoryAccess } from "../../../../lib/api/repository";
 
 export function ConnectRepository() {
-  const { setHasRepo, setRepoName, githubConnected, setGithubConnected } = useDashboard();
+  const { setHasRepo, setRepoId, setRepoName, githubConnected, setGithubConnected } = useDashboard();
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [connecting, setConnecting] = useState<string | null>(null);
@@ -36,7 +36,8 @@ export function ConnectRepository() {
     if (!repo) return;
     setConnecting(name);
     try {
-      await ingest(repo.url);
+      const result = await ingest(repo.url);
+      setRepoId(result.repoId);
       setHasRepo(true);
       setRepoName(name);
     } finally {
