@@ -1,0 +1,15 @@
+fastapi
+uvicorn[standard]
+sqlalchemy
+pydantic
+pydantic-settings
+pinecone-client[asyncio]
+langchain
+langchain-openai
+tree-sitter>=0.22.0
+tree-sitter-python
+tree-sitter-javascript
+tree-sitter-typescript
+gitpython
+python-dotenv
+alembic
