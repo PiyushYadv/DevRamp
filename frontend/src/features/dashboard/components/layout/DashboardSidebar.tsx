@@ -6,9 +6,9 @@ import { RepositorySwitcher } from "./RepositorySwitcher";
 import { useRepositoryTree } from "../../hooks/useRepositoryTree";
 
 export function DashboardSidebar() {
-  const { hasRepo, repoName } = useDashboard();
+  const { hasRepo, repoId, repoName } = useDashboard();
   const { data: fileTree = [], isLoading } = useRepositoryTree(
-    hasRepo ? repoName : null,
+    hasRepo ? repoId || null : null,
   );
 
   return (

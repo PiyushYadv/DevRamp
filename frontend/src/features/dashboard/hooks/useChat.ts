@@ -2,10 +2,12 @@ import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type { ChatContext, ChatMessage, Citation } from "../../../lib/api/types";
 import { getChatHistory, streamChat } from "../../../lib/api/chat";
+import { USE_MOCK_API } from "../../../lib/api/config";
 import { INITIAL_MESSAGES } from "../data/mockChat";
 
 export function useChat(repoId: string | null, filePath: string | null) {
-  const [messages, setMessages] = useState<ChatMessage[]>(INITIAL_MESSAGES);
+  // The mock conversation is only a placeholder for mock mode; real history comes from the backend
+  const [messages, setMessages] = useState<ChatMessage[]>(USE_MOCK_API ? INITIAL_MESSAGES : []);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
 
@@ -13,7 +15,7 @@ export function useChat(repoId: string | null, filePath: string | null) {
     queryKey: ["chat-history", repoId],
     queryFn: () => getChatHistory(repoId!),
     enabled: Boolean(repoId),
-    initialData: INITIAL_MESSAGES,
+    ...(USE_MOCK_API ? { initialData: INITIAL_MESSAGES } : {}),
   });
 
   useEffect(() => {
@@ -67,7 +69,12 @@ export function useChat(repoId: string | null, filePath: string | null) {
     } catch (err) {
       const nextError = err instanceof Error ? err : new Error("Unable to get a response.");
       setError(nextError);
-      setMessages((current) => current.filter((message) => message.id !== assistantId));
+      // Keep the exchange visible with the reason instead of silently dropping the reply
+      setMessages((current) => current.map((message) =>
+        message.id === assistantId
+          ? { ...message, content: message.content ? `${message.content}\n\n**Error:** ${nextError.message}` : `**Error:** ${nextError.message}` }
+          : message,
+      ));
     } finally {
       setIsLoading(false);
     }

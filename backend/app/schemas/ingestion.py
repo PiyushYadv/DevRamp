@@ -11,3 +11,6 @@ class SemanticChunk(BaseModel):
     end_line: int
     content: str
     commit_sha: str
+    # Set when an oversized definition is split: 1-based part index and total parts
+    part: Optional[int] = None
+    parts: Optional[int] = None

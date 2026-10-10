@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { langColor } from "../../constants/workspace";
 import { useIngestRepository } from "../../hooks/useIngestRepository";
-import { useRepositories } from "../../hooks/useRepositories";
+import { GITHUB_REPOSITORIES_QUERY_KEY, useGithubRepositories } from "../../hooks/useGithubRepositories";
 import { updateRepositoryAccess } from "../../../../lib/api/repository";
 
 export function ConnectRepository() {
@@ -25,7 +25,7 @@ export function ConnectRepository() {
   const [accessModalOpen, setAccessModalOpen] = useState(false);
   const [savingAccess, setSavingAccess] = useState(false);
   const { ingest } = useIngestRepository();
-  const { data: repositories = [], isLoading, error } = useRepositories(githubConnected);
+  const { data: repositories = [], isLoading, error } = useGithubRepositories(githubConnected);
 
   const filtered = repositories.filter((r) =>
     r.name.toLowerCase().includes(search.toLowerCase()),
@@ -49,7 +49,7 @@ export function ConnectRepository() {
     setSavingAccess(true);
     try {
       await updateRepositoryAccess(repositoryIds);
-      await queryClient.invalidateQueries({ queryKey: ["repositories"] });
+      await queryClient.invalidateQueries({ queryKey: GITHUB_REPOSITORIES_QUERY_KEY });
       setAccessModalOpen(false);
     } finally {
       setSavingAccess(false);

@@ -44,7 +44,14 @@ export async function streamChat(
   });
 
   if (!response.ok || !response.body) {
-    throw new Error((await response.text()) || `Chat request failed with status ${response.status}`);
+    const text = await response.text();
+    let message = text || `Chat request failed with status ${response.status}`;
+    try {
+      message = (JSON.parse(text) as { detail?: string }).detail ?? message;
+    } catch {
+      // non-JSON error body: use it as-is
+    }
+    throw new Error(message);
   }
 
   const reader = response.body.getReader();
@@ -72,6 +79,7 @@ export async function streamChat(
     if (event === "token") handlers.onToken(payload.text ?? payload.delta ?? "");
     if (event === "citation" && payload.file) handlers.onCitation(payload);
     if (event === "done") handlers.onDone?.(payload.messageId);
+    if (event === "error") throw new Error(payload.message ?? "The assistant failed to respond.");
   };
 
   while (true) {

@@ -1,8 +1,10 @@
 import { apiFetch } from "./client";
 import type {
   FileTreeNode,
+  GithubRepository,
   IngestRepositoryPayload,
   IngestRepositoryResponse,
+  WorkspaceRepository,
 } from "./types";
 import { USE_MOCK_API } from "./config";
 import { MOCK_REPOSITORIES } from "../../features/dashboard/data/mockRepository";
@@ -20,7 +22,27 @@ export function ingestRepository(payload: IngestRepositoryPayload) {
   });
 }
 
+/** Repositories in the user's DevRamp workspace (GET /api/repositories). */
 export async function getRepositories(): Promise<RepositoryCard[]> {
+  if (USE_MOCK_API) return MOCK_REPOSITORIES;
+  const repositories = await apiFetch<WorkspaceRepository[]>("/api/repositories");
+  return repositories.map((repo) => ({
+    id: repo.id,
+    name: repo.fullName,
+    url: repo.url,
+    language: repo.language ?? undefined,
+    indexed: repo.indexed,
+    private: repo.private,
+    stars: repo.stars,
+    updated: formatRelativeTime(repo.updated),
+  }));
+}
+
+/**
+ * Repositories from the connected GitHub account (GET /api/github/repositories), limited to the ones chosen
+ * in RepositoryAccessModal when a selection exists. Card ids are GitHub repository ids.
+ */
+export async function getGithubRepositories(): Promise<RepositoryCard[]> {
   if (USE_MOCK_API) {
     const stored = localStorage.getItem(MOCK_REPOSITORY_ACCESS_KEY);
     if (!stored) return MOCK_REPOSITORIES;
@@ -31,7 +53,30 @@ export async function getRepositories(): Promise<RepositoryCard[]> {
       return MOCK_REPOSITORIES;
     }
   }
-  return apiFetch<RepositoryCard[]>("/api/repositories");
+  const repositories = await apiFetch<GithubRepository[]>("/api/github/repositories");
+  const hasSelection = repositories.some((repo) => repo.selected);
+  return repositories
+    .filter((repo) => !hasSelection || repo.selected)
+    .map((repo) => ({
+      id: repo.id,
+      name: repo.fullName,
+      url: repo.url,
+      language: repo.language ?? undefined,
+      indexed: repo.indexed,
+      private: repo.private,
+      stars: repo.stars,
+      updated: formatRelativeTime(repo.updated),
+    }));
+}
+
+function formatRelativeTime(iso: string | null | undefined): string {
+  if (!iso) return "recently";
+  const seconds = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
+  const units: [number, string][] = [[31536000, "y"], [2592000, "mo"], [86400, "d"], [3600, "h"], [60, "m"]];
+  for (const [size, label] of units) {
+    if (seconds >= size) return `${Math.floor(seconds / size)}${label} ago`;
+  }
+  return "just now";
 }
 
 export function getRepositoryTree(repoId: string) {

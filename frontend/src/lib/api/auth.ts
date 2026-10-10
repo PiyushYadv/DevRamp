@@ -4,9 +4,12 @@ import type {
   SignupPayload,
 } from "./types";
 import { apiFetch } from "./client";
-import { USE_MOCK_API } from "./config";
+import { GITHUB_CLIENT_ID, GITHUB_SCOPES, USE_MOCK_API } from "./config";
 
 const MOCK_AUTH_DELAY = 1000;
+const GITHUB_OAUTH_STATE_KEY = "devramp-github-oauth";
+
+type GithubOAuthMode = "login" | "connect";
 
 function persistAuth(response: AuthResponse, providerOverride?: "password" | "github") {
   if (providerOverride && response.user.authProvider !== providerOverride) {
@@ -14,7 +17,8 @@ function persistAuth(response: AuthResponse, providerOverride?: "password" | "gi
   }
   localStorage.setItem("devramp-auth", JSON.stringify(response));
   localStorage.setItem("devramp-access-token", response.accessToken);
-  if (response.user.authProvider === "github") {
+  // githubUrl is only set once a GitHub account is linked, including password users who connected GitHub
+  if (response.user.authProvider === "github" || response.user.githubUrl) {
     localStorage.setItem("devramp-github-connected", "true");
   } else {
     localStorage.removeItem("devramp-github-connected");
@@ -112,13 +116,70 @@ export async function connectGithub(): Promise<AuthResponse> {
     return persistAuth(response, "github");
   }
 
-  const response = await apiFetch<AuthResponse>("/api/auth/github/connect", { method: "POST" });
-  return persistAuth(response, "github");
+  return startGithubOAuth("connect");
 }
 
 export async function githubAuth() {
-  const response = USE_MOCK_API
-    ? await mockGithubAuth()
-    : await apiFetch<AuthResponse>("/api/auth/github", { method: "POST" });
-  return USE_MOCK_API ? response : persistAuth(response, "github");
+  if (USE_MOCK_API) return mockGithubAuth();
+  return startGithubOAuth("login");
+}
+
+/**
+ * Redirects the browser to GitHub's consent screen. GitHub sends the user back to
+ * /auth/github/callback, where completeGithubOAuth finishes the flow. The returned
+ * promise never resolves because the page unloads.
+ */
+function startGithubOAuth(mode: GithubOAuthMode): Promise<never> {
+  if (!GITHUB_CLIENT_ID) {
+    return Promise.reject(new Error("GitHub sign-in is not configured (VITE_GITHUB_CLIENT_ID)."));
+  }
+
+  // Random state ties the callback to this browser tab and blocks login CSRF
+  const state = crypto.randomUUID();
+  sessionStorage.setItem(GITHUB_OAUTH_STATE_KEY, JSON.stringify({ state, mode }));
+
+  const params = new URLSearchParams({
+    client_id: GITHUB_CLIENT_ID,
+    redirect_uri: `${window.location.origin}/auth/github/callback`,
+    scope: GITHUB_SCOPES,
+    state,
+    allow_signup: "true",
+  });
+  window.location.assign(`https://github.com/login/oauth/authorize?${params}`);
+  return new Promise<never>(() => {});
+}
+
+// OAuth codes are single-use; React StrictMode runs effects twice in development
+const pendingGithubCallbacks = new Map<string, Promise<GithubOAuthMode>>();
+
+/** Exchanges the callback `code` with the backend. Resolves to the mode the flow was started in. */
+export function completeGithubOAuth(code: string, state: string): Promise<GithubOAuthMode> {
+  const pending = pendingGithubCallbacks.get(code);
+  if (pending) return pending;
+
+  const promise = (async () => {
+    const stored = sessionStorage.getItem(GITHUB_OAUTH_STATE_KEY);
+    sessionStorage.removeItem(GITHUB_OAUTH_STATE_KEY);
+
+    let expected: { state: string; mode: GithubOAuthMode } | null = null;
+    try {
+      expected = stored ? JSON.parse(stored) : null;
+    } catch {
+      expected = null;
+    }
+    if (!expected || expected.state !== state) {
+      throw new Error("GitHub sign-in could not be verified. Please try again.");
+    }
+
+    const path = expected.mode === "connect" ? "/api/auth/github/connect" : "/api/auth/github";
+    const response = await apiFetch<AuthResponse>(path, {
+      method: "POST",
+      body: JSON.stringify({ code }),
+    });
+    persistAuth(response, "github");
+    return expected.mode;
+  })();
+
+  pendingGithubCallbacks.set(code, promise);
+  return promise;
 }

@@ -5,6 +5,50 @@ export interface Repository {
   language?: string;
   indexed: boolean;
 }
+export type AnalysisStatus = "queued" | "processing" | "completed" | "failed";
+
+/** GET /api/repositories item */
+export interface WorkspaceRepository extends Repository {
+  owner: string;
+  fullName: string;
+  defaultBranch: string;
+  private: boolean;
+  description?: string | null;
+  stars: number;
+  updated?: string | null;
+  analysisStatus: AnalysisStatus;
+  currentCommit?: string | null;
+  lastSyncedAt?: string | null;
+  lastAnalyzedAt?: string | null;
+  onboardingProgress: { completed: number; total: number; percentage: number };
+}
+
+/** GET /api/github/repositories item */
+export interface GithubRepository {
+  id: string;
+  name: string;
+  fullName: string;
+  url: string;
+  private: boolean;
+  defaultBranch: string;
+  language?: string | null;
+  description?: string | null;
+  stars: number;
+  updated?: string | null;
+  indexed: boolean;
+  selected: boolean;
+  repoId?: string | null;
+}
+
+/** GET /api/repository/{repoId}/ingestion */
+export interface IngestionStatus {
+  status: AnalysisStatus;
+  stage?: string | null;
+  progress: number;
+  message?: string | null;
+  chunkCount: number;
+}
+
 export interface FileTreeNode {
   name: string;
   path: string;

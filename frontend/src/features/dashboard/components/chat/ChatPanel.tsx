@@ -5,6 +5,33 @@ import { CLRS } from "../../constants/workspace";
 import { useChat } from "../../hooks/useChat";
 import { useDashboard } from "../../context/DashboardContext";
 
+const INLINE_CODE_STYLE = "color:#a78bfa;font-family:monospace";
+
+function escapeHtml(text: string) {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+/**
+ * Assistant text is model output that can quote untrusted repository content, so it is HTML-escaped
+ * before the small markdown subset (bold, inline code, citations, line breaks) is applied.
+ */
+function renderAssistantContent(content: string) {
+  return escapeHtml(content)
+    .replace(
+      /\[file:([^\]\s]+?):L?(\d+)(?:-L?(\d+))?\]/g,
+      (_, path: string, start: string, end?: string) =>
+        `<code style='${INLINE_CODE_STYLE}'>${path}:L${start}${end ? `-L${end}` : ""}</code>`,
+    )
+    .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
+    .replace(/`(.*?)`/g, `<code style='${INLINE_CODE_STYLE}'>$1</code>`)
+    .replace(/\n/g, "<br />");
+}
+
 function HighlightedCode({ code }: { code: string }) {
   return (
     <pre className="p-3 text-[11px] font-mono overflow-x-auto leading-relaxed bg-[#0D1117]">
@@ -22,7 +49,7 @@ function HighlightedCode({ code }: { code: string }) {
 }
 
 export function ChatPanel() {
-  const { repoId, selectedFile } = useDashboard();
+  const { repoId, selectedFile, setSelectedFile } = useDashboard();
   const [fileContext, setFileContext] = useState<string | null>(selectedFile);
   const { messages, sendMessage, isLoading } = useChat(
     repoId || null,
@@ -119,12 +146,7 @@ export function ChatPanel() {
                 <div
                   className="text-[11px] text-slate-300 leading-relaxed"
                   dangerouslySetInnerHTML={{
-                    __html: msg.content
-                      .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
-                      .replace(
-                        /`(.*?)`/g,
-                        "<code style='color:#a78bfa;font-family:monospace'>$1</code>",
-                      ),
+                    __html: renderAssistantContent(msg.content),
                   }}
                 />
                 {msg.code && (
@@ -142,6 +164,13 @@ export function ChatPanel() {
                     {msg.citations.map((c) => (
                       <span
                         key={c.label}
+                        role="button"
+                        tabIndex={0}
+                        title={`Open ${c.label}`}
+                        onClick={() => setSelectedFile(c.file)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter" || event.key === " ") setSelectedFile(c.file);
+                        }}
                         className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-indigo-500/10 border border-indigo-500/25 text-[10px] font-mono text-indigo-300 hover:bg-indigo-500/20 cursor-pointer transition-colors"
                       >
                         <span className="text-[9px]">📄</span>

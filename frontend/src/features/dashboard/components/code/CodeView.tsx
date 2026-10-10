@@ -5,7 +5,7 @@ import { CodeLine } from "./CodeLine";
 import { useFileContent } from "../../hooks/useFileContent";
 
 export function CodeView() {
-  const { selectedFile, setSelectedFile, repoName } = useDashboard();
+  const { selectedFile, setSelectedFile, repoId } = useDashboard();
   const [openFiles, setOpenFiles] = useState<string[]>(
     selectedFile ? [selectedFile] : [],
   );
@@ -30,7 +30,7 @@ export function CodeView() {
     }
   };
 
-  const { data: fileData, isLoading } = useFileContent(repoName || null, currentTab);
+  const { data: fileData, isLoading } = useFileContent(repoId || null, currentTab);
   const lines = fileData?.content.split("\n") ?? [];
   const fileName = currentTab.split("/").pop() ?? "";
 

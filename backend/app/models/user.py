@@ -17,5 +17,11 @@ class User(Base):
     github_url: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     auth_provider: Mapped[str] = mapped_column(String, default="password")
 
+    # Linked GitHub account; the OAuth token is stored encrypted (see app.utils.encryption)
+    github_id: Mapped[Optional[str]] = mapped_column(String, unique=True, index=True, nullable=True)
+    github_login: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    github_access_token: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    github_scopes: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+
     # Relationship to the join table
     repositories: Mapped[List["UserRepositoryAccess"]] = relationship(back_populates="user")
