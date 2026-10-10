@@ -1,12 +1,12 @@
 import { Database, Server, Terminal } from "lucide-react";
-import { ServiceFlow } from "./ServiceFlow";
+import { MermaidDiagram } from "./MermaidDiagram";
 import { SetupView } from "./SetupView";
 import { useDashboard } from "../../context/DashboardContext";
 import { useArchitecture } from "../../hooks/useWorkspaceData";
 
 export function ArchitectureView() {
-  const { repoName } = useDashboard();
-  const { data, isLoading } = useArchitecture(repoName || null);
+  const { repoId } = useDashboard();
+  const { data, isLoading } = useArchitecture(repoId || null);
   if (isLoading || !data) return <div className="p-5 text-sm text-slate-500">Loading architecture...</div>;
   return (
     <div className="space-y-4">
@@ -32,7 +32,7 @@ export function ArchitectureView() {
           <Database className="w-4 h-4 text-slate-500" />
           <span className="text-xs font-medium text-slate-300">Service Topology</span>
         </div>
-        <ServiceFlow />
+        <MermaidDiagram chart={data.mermaid} />
         <div className="px-4 pb-3 flex items-center gap-4 text-[10px] text-slate-600 font-mono border-t border-white/[0.06] pt-2">
           {data.connections.map((connection) => <span key={connection}>{connection}</span>)}
         </div>

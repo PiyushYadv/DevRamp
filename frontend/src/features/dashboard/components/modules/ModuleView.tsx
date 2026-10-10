@@ -13,8 +13,8 @@ export function ModuleView() {
     markAllDone,
     moduleProgress,
   } = useDashboard();
-  const { repoName } = useDashboard();
-  const { data: modules = [], isLoading } = useModules(repoName || null);
+  const { repoId } = useDashboard();
+  const { data: modules = [], isLoading } = useModules(repoId || null);
   const [activeSection, setActiveSection] = useState(0);
 
   const module = modules.find((m) => m.n === selectedModule) ?? modules[0];

@@ -3,8 +3,8 @@ import { useDashboard } from "../../context/DashboardContext";
 import { useDependencies } from "../../hooks/useWorkspaceData";
 
 export function DependencyView() {
-  const { repoName } = useDashboard();
-  const { data: modules = [], isLoading } = useDependencies(repoName || null);
+  const { repoId } = useDashboard();
+  const { data: modules = [], isLoading } = useDependencies(repoId || null);
   if (isLoading) return <div className="p-5 text-sm text-slate-500">Loading dependencies...</div>;
   return (
     <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4">

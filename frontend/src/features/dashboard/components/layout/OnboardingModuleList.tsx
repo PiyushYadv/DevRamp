@@ -9,9 +9,9 @@ export function OnboardingModuleList() {
     setSelectedModule,
     setSelectedFile,
     moduleProgress,
-    repoName,
+    repoId,
   } = useDashboard();
-  const { data: modules = [] } = useModules(repoName || null);
+  const { data: modules = [] } = useModules(repoId || null);
   if (!hasRepo) return null;
   return (
     <div className="border-t border-white/[0.06] p-3">

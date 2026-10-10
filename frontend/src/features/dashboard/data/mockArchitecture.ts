@@ -1,5 +1,20 @@
 import type { ArchitectureNodeViewModel } from "../../../lib/ui/types";
 
+export const MOCK_ARCHITECTURE_MERMAID = `flowchart TD
+  client(["Client<br/><small>React / Mobile</small>"])
+  api["REST API<br/><small>Node.js / Express</small>"]
+  pg[("PostgreSQL<br/><small>Primary DB</small>")]
+  redis[("Redis<br/><small>Cache / Sessions</small>")]
+  client -->|HTTP/REST| api
+  api -->|Prisma| pg
+  api -->|TCP/6379| redis
+  classDef client fill:#38bdf81a,stroke:#38bdf8,color:#e2e8f0
+  classDef server fill:#818cf81a,stroke:#818cf8,color:#e2e8f0
+  classDef database fill:#34d3991a,stroke:#34d399,color:#e2e8f0
+  class client client
+  class api server
+  class pg,redis database`;
+
 export const MOCK_ARCHITECTURE_NODES: ArchitectureNodeViewModel[] = [
   {
     id: "client",

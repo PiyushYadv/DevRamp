@@ -132,12 +132,15 @@ export interface ArchitectureNode {
   id: string;
   label: string;
   sub: string;
+  kind?: string;
 }
 
 export interface RepositoryArchitecture {
   tags: string[];
   summary: string;
   connections: string[];
+  /** Mermaid `flowchart TD` source for the service topology */
+  mermaid: string;
 }
 
 export interface DependencyModule {

@@ -9,7 +9,7 @@ import {
   PREREQUISITES,
   QUICK_START_COMMANDS,
 } from "../../features/dashboard/data/mockWorkspace";
-import { MOCK_ARCHITECTURE_NODES } from "../../features/dashboard/data/mockArchitecture";
+import { MOCK_ARCHITECTURE_MERMAID, MOCK_ARCHITECTURE_NODES } from "../../features/dashboard/data/mockArchitecture";
 import { MODULE_DATA } from "../../features/dashboard/data/mockModules";
 import { INITIAL_CHECKLISTS } from "../../features/dashboard/data/mockDashboardState";
 import type { CheckItem } from "../../features/dashboard/types";
@@ -34,6 +34,7 @@ export function getArchitecture(repoId: string): Promise<WorkspaceArchitecture> 
       connections: ARCHITECTURE_CONNECTIONS,
       quickStart: QUICK_START_COMMANDS,
       nodes: MOCK_ARCHITECTURE_NODES,
+      mermaid: MOCK_ARCHITECTURE_MERMAID,
     });
   }
   return apiFetch<WorkspaceArchitecture>(`/api/repository/${encodeURIComponent(repoId)}/architecture`);

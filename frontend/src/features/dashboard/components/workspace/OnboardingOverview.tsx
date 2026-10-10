@@ -3,8 +3,8 @@ import { useDashboard } from "../../context/DashboardContext";
 import { useModules } from "../../hooks/useWorkspaceData";
 
 export function OnboardingOverview() {
-  const { repoName, checklists, moduleProgress, setSelectedModule, setSelectedFile } = useDashboard();
-  const { data: modules = [] } = useModules(repoName || null);
+  const { repoId, repoName, checklists, moduleProgress, setSelectedModule, setSelectedFile } = useDashboard();
+  const { data: modules = [] } = useModules(repoId || null);
 
   const allItems = Object.values(checklists).flat();
   const completed = allItems.filter((item) => item.done).length;

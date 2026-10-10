@@ -61,8 +61,9 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
   const [repositoryModalOpen, setRepositoryModalOpen] = useState(false);
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [selectedModule, setSelectedModule] = useState<number | null>(null);
-  const [checklists, setChecklists] =
-    useState<Record<number, CheckItem[]>>(INITIAL_CHECKLISTS);
+  const [checklists, setChecklists] = useState<Record<number, CheckItem[]>>(
+    {},
+  );
   const [indexedFiles, setIndexedFiles] = useState<Set<string>>(
     INITIAL_INDEXED_FILES,
   );
@@ -92,11 +93,43 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
   }, [hasRepo, repoId, repoName]);
 
   const checklistQuery = useQuery({
-    queryKey: ["checklist", repoName],
-    queryFn: () => getChecklist(repoName),
-    enabled: hasRepo && Boolean(repoName),
-    initialData: INITIAL_CHECKLISTS,
+    queryKey: ["checklist", repoId],
+    queryFn: () => getChecklist(repoId),
+    enabled: hasRepo && Boolean(repoId),
   });
+
+  // The server supplies the checklist items; which ones are done is per-browser progress in localStorage
+  useEffect(() => {
+    if (!checklistQuery.data) {
+      if (hydratedRepo.current !== repoId) setChecklists({});
+      return;
+    }
+    let saved: {
+      checklists?: Record<number, CheckItem[]>;
+      lastSyncedAt?: string | null;
+    } = {};
+    try {
+      saved = JSON.parse(localStorage.getItem(storageKey(repoId)) ?? "{}");
+    } catch {
+      saved = {};
+    }
+    const done = new Set(
+      Object.values(saved.checklists ?? {})
+        .flat()
+        .filter((item) => item.done)
+        .map((item) => item.id),
+    );
+    setChecklists(
+      Object.fromEntries(
+        Object.entries(checklistQuery.data).map(([n, items]) => [
+          Number(n),
+          items.map((item) => ({ ...item, done: item.done || done.has(item.id) })),
+        ]),
+      ),
+    );
+    setLastSyncedAt(saved.lastSyncedAt ?? null);
+    hydratedRepo.current = repoId;
+  }, [repoId, checklistQuery.data]);
 
   useEffect(() => {
     if (repoId) {
@@ -113,12 +146,12 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
   }, [repoId, repoName]);
 
   useEffect(() => {
-    if (!repoName || !hasRepo || hydratedRepo.current !== repoName) return;
+    if (!repoId || !hasRepo || hydratedRepo.current !== repoId) return;
     localStorage.setItem(
-      storageKey(repoName),
+      storageKey(repoId),
       JSON.stringify({ checklists, lastSyncedAt }),
     );
-  }, [repoName, hasRepo, checklists, lastSyncedAt]);
+  }, [repoId, hasRepo, checklists, lastSyncedAt]);
 
   const toggleIndexedFile = (path: string) =>
     setIndexedFiles((prev) => {
