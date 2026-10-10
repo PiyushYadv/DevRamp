@@ -84,6 +84,7 @@ def build_checklist(analysis: dict) -> dict[int, list[dict]]:
         "clone": "Clone the repository", "services": "Start supporting services with Docker Compose",
         "env": "Configure .env from the example file", "venv": "Create a Python virtual environment",
         "deps": "Install dependencies", "migrations": "Run database migrations", "start": "Start the dev server",
+        "serve": "Serve the site locally and open it in a browser",
     }
     local = []
     for step in architecture["quickStart"]:

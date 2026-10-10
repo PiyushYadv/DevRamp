@@ -65,3 +65,22 @@ async def test_rate_limit_is_not_retried_and_reports_delay(gemini):
     with pytest.raises(LLMRateLimitError, match="17s"):
         await collect(GeminiChatClient(api_key="k"))
     assert len(requests) == 1
+
+
+async def test_stalled_primary_fails_over_quickly(gemini, monkeypatch):
+    seen = []
+
+    def handler(request):
+        seen.append((request.url.path, request.extensions["timeout"]["read"]))
+        if len(seen) == 1:
+            raise httpx.ReadTimeout("no first byte", request=request)
+        return httpx.Response(200, content=sse_body("ok"))
+
+    client = httpx.AsyncClient(base_url="https://gemini.test", transport=httpx.MockTransport(handler), timeout=60.0)
+    monkeypatch.setattr(ai_http, "_client", client)
+
+    assert await collect(GeminiChatClient(api_key="k", model="primary", fallback_model="backup")) == ["ok"]
+    assert seen == [
+        ("/models/primary:streamGenerateContent", llm_module.PRIMARY_READ_TIMEOUT_SECONDS),
+        ("/models/backup:streamGenerateContent", 60.0),
+    ]

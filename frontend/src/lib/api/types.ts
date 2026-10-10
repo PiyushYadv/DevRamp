@@ -17,6 +17,8 @@ export interface WorkspaceRepository extends Repository {
   stars: number;
   updated?: string | null;
   analysisStatus: AnalysisStatus;
+  indexedFiles: number;
+  chunkCount: number;
   currentCommit?: string | null;
   lastSyncedAt?: string | null;
   lastAnalyzedAt?: string | null;
@@ -93,6 +95,7 @@ export interface AuthResponse {
 export interface Citation {
   file: string;
   line?: number;
+  endLine?: number;
   label: string;
 }
 export interface ChatContext {

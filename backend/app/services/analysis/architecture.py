@@ -131,7 +131,9 @@ def tags(profile: StackProfile) -> list[str]:
     labels = []
     for component in profile.components:
         labels += [component.framework, component.build_tool if component.kind == "frontend" else None]
-    labels += profile.languages + profile.databases + profile.orms + profile.auth + profile.services
+        if component.ecosystem == "static":
+            labels += ["HTML", "CSS"]
+    labels += profile.languages + profile.view_engines + profile.databases + profile.orms + profile.auth + profile.services
     return list(dict.fromkeys(label for label in labels if label))[:MAX_TAGS]
 
 
@@ -142,14 +144,21 @@ def _join(items: list[str]) -> str:
 def summary(profile: StackProfile, repo: Repository) -> str:
     def describe(component: Component) -> str:
         where = f" in `{component.path}/`" if component.path else ""
-        return f"a {_component_sub(component)} {component.kind if component.kind != 'library' else 'package'}{where}"
+        sub = _component_sub(component)
+        article = "an" if sub[:1].lower() in "aeiou" else "a"
+        return f"{article} {sub} {component.kind if component.kind != 'library' else 'package'}{where}"
 
     frontends, servers = profile.frontends, profile.servers
     if frontends and servers:
         opening = f"Full-stack application with {_join([describe(c) for c in frontends + servers])}."
     elif servers:
-        style = "Monolithic" if len(servers) == 1 else "Multi-service"
-        opening = f"{style} backend built as {_join([describe(c) for c in servers])}."
+        if len(servers) == 1:
+            where = f" in `{servers[0].path}/`" if servers[0].path else ""
+            opening = f"Monolithic {_component_sub(servers[0])} application{where}."
+        else:
+            opening = f"Multi-service backend built as {_join([describe(c) for c in servers])}."
+    elif frontends and all(c.ecosystem == "static" for c in frontends):
+        opening = "Static website written in plain HTML, CSS and JavaScript with no build step or package manifest."
     elif frontends:
         opening = f"Client-side application built as {_join([describe(c) for c in frontends])}."
     elif profile.components:
@@ -169,6 +178,8 @@ def summary(profile: StackProfile, repo: Repository) -> str:
         sentences.append(f"Also uses {_join(supporting)}.")
     if profile.brokers:
         sentences.append(f"Async work flows through {_join(profile.brokers)}.")
+    if profile.view_engines:
+        sentences.append(f"Pages are server-rendered with {_join(profile.view_engines)} templates.")
     if profile.auth:
         sentences.append(f"Authentication uses {_join(profile.auth)}.")
     if profile.external_services:

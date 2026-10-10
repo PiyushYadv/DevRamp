@@ -1,5 +1,5 @@
 from app.parsers.tree_sitter import get_parser_and_lang
-from app.services.ingestion.chunker import ASTChunker
+from app.services.ingestion.chunker import MAX_CHUNK_LINES, ASTChunker
 
 
 def chunk(code: str, ext: str):
@@ -144,3 +144,51 @@ def test_symlinked_files_are_not_indexed(tmp_path):
     chunks = ASTChunker().extract_chunks(str(tmp_path), "repo_test", "abc123")
 
     assert [c.symbol for c in chunks] == ["ok"]
+
+
+def test_top_level_code_between_definitions_is_indexed():
+    code = (
+        "import { a } from './a';\n"
+        "\n"
+        "const open = function () {\n"
+        "  modal.show();\n"
+        "};\n"
+        "\n"
+        "btn.addEventListener('click', function (e) {\n"
+        "  section.scrollIntoView({ behavior: 'smooth' });\n"
+        "});\n"
+    )
+    chunks = chunk(code, ".js")
+
+    assert [(c.node_type, c.symbol, c.start_line, c.end_line) for c in chunks] == [
+        ("function_declaration", "open", 3, 5),
+        ("module", None, 7, 9),  # the import-only run on line 1 is skipped
+    ]
+    assert "scrollIntoView" in chunks[1].content
+
+
+def test_long_top_level_runs_split_at_statement_boundaries():
+    code = "".join(f"x{i} = {i}\n" for i in range(MAX_CHUNK_LINES + 20))
+    chunks = chunk(code, ".py")
+
+    assert len(chunks) == 2
+    assert chunks[0].end_line == MAX_CHUNK_LINES and chunks[1].start_line == MAX_CHUNK_LINES + 1
+
+
+def test_docstring_and_imports_only_file_has_no_chunks():
+    assert chunk('"""Package docs."""\nimport os\nfrom typing import Any\n', ".py") == []
+
+
+def test_generated_bundles_are_skipped(tmp_path):
+    js = tmp_path / "public" / "js"
+    js.mkdir(parents=True)
+    (js / "index.js").write_text("export function login() {}\n")
+    (js / "bundle.js").write_text("parcelRequire=function(e){" + "var a=1;" * 400 + "}\n")  # sibling .map
+    (js / "bundle.js.map").write_text("{}")
+    (js / "vendor.js").write_text("function v(){}\n//# sourceMappingURL=vendor.js.map\n")
+    (js / "inline.js").write_text("!function(){" + "x();" * 6000 + "}();\n")  # minified, no map
+    (js / "Dense.jsx").write_text("export function Dense() { return " + "<b>x</b>" * 200 + "; }\n")  # small, handwritten
+
+    paths = {c.path for c in ASTChunker().extract_chunks(str(tmp_path), "r", "c")}
+
+    assert paths == {"public/js/index.js", "public/js/Dense.jsx"}

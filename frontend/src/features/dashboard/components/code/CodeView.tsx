@@ -1,11 +1,12 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useDashboard } from "../../context/DashboardContext";
 import { ArrowLeft, FileCode2, FileJson, X } from "lucide-react";
 import { CodeLine } from "./CodeLine";
 import { useFileContent } from "../../hooks/useFileContent";
 
 export function CodeView() {
-  const { selectedFile, setSelectedFile, repoId } = useDashboard();
+  const { selectedFile, setSelectedFile, selectedLines, repoId } = useDashboard();
+  const codeRef = useRef<HTMLDivElement>(null);
   const [openFiles, setOpenFiles] = useState<string[]>(
     selectedFile ? [selectedFile] : [],
   );
@@ -33,6 +34,15 @@ export function CodeView() {
   const { data: fileData, isLoading } = useFileContent(repoId || null, currentTab);
   const lines = fileData?.content.split("\n") ?? [];
   const fileName = currentTab.split("/").pop() ?? "";
+  const target = selectedLines && currentTab === selectedFile ? selectedLines : null;
+
+  // Bring a cited range into view once the file's lines have rendered
+  useEffect(() => {
+    if (!target || !fileData) return;
+    codeRef.current
+      ?.querySelector(`[data-line="${target.start}"]`)
+      ?.scrollIntoView({ block: "center", behavior: "smooth" });
+  }, [target, fileData]);
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
@@ -94,7 +104,7 @@ export function CodeView() {
       )}
 
       {/* Code */}
-      <div className="flex-1 overflow-auto bg-[#0B0F17]">
+      <div ref={codeRef} className="flex-1 overflow-auto bg-[#0B0F17]">
         {!currentTab || isLoading ? (
           <div className="flex flex-col items-center justify-center h-full gap-2">
             <FileCode2 className="w-8 h-8 text-slate-700" />
@@ -107,7 +117,7 @@ export function CodeView() {
                 key={i}
                 line={line}
                 num={i + 1}
-                highlight={i + 1 === 42 && currentTab === "src/auth/jwt.ts"}
+                highlight={Boolean(target && i + 1 >= target.start && i + 1 <= target.end)}
               />
             ))}
           </div>

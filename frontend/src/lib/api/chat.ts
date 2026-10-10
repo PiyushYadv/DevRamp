@@ -1,6 +1,6 @@
 import { MOCK_CHAT_REPLY, INITIAL_MESSAGES } from "../../features/dashboard/data/mockChat";
 import type { ChatContext, ChatMessage, Citation } from "./types";
-import { apiFetch } from "./client";
+import { apiFetch, handleUnauthorized } from "./client";
 import { USE_MOCK_API } from "./config";
 
 export async function mockChat(_query: string): Promise<ChatMessage> {
@@ -44,6 +44,7 @@ export async function streamChat(
   });
 
   if (!response.ok || !response.body) {
+    if (response.status === 401) handleUnauthorized("/api/chat/stream", Boolean(token));
     const text = await response.text();
     let message = text || `Chat request failed with status ${response.status}`;
     try {

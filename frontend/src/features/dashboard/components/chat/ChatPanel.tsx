@@ -25,7 +25,7 @@ function renderAssistantContent(content: string) {
     .replace(
       /\[file:([^\]\s]+?):L?(\d+)(?:-L?(\d+))?\]/g,
       (_, path: string, start: string, end?: string) =>
-        `<code style='${INLINE_CODE_STYLE}'>${path}:L${start}${end ? `-L${end}` : ""}</code>`,
+        `<code data-file='${path}' data-start='${start}' data-end='${end ?? start}' style='${INLINE_CODE_STYLE};cursor:pointer'>${path}:L${start}${end ? `-L${end}` : ""}</code>`,
     )
     .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
     .replace(/`(.*?)`/g, `<code style='${INLINE_CODE_STYLE}'>$1</code>`)
@@ -49,7 +49,7 @@ function HighlightedCode({ code }: { code: string }) {
 }
 
 export function ChatPanel() {
-  const { repoId, selectedFile, setSelectedFile } = useDashboard();
+  const { repoId, selectedFile, openFileAt } = useDashboard();
   const [fileContext, setFileContext] = useState<string | null>(selectedFile);
   const { messages, sendMessage, isLoading } = useChat(
     repoId || null,
@@ -145,6 +145,13 @@ export function ChatPanel() {
               <div className="w-full">
                 <div
                   className="text-[11px] text-slate-300 leading-relaxed"
+                  onClick={(event) => {
+                    // Inline [file:path:L12-L20] citations are rendered as <code data-file=...>
+                    const cite = (event.target as HTMLElement).closest<HTMLElement>("[data-file]");
+                    if (cite?.dataset.file) {
+                      openFileAt(cite.dataset.file, Number(cite.dataset.start), Number(cite.dataset.end));
+                    }
+                  }}
                   dangerouslySetInnerHTML={{
                     __html: renderAssistantContent(msg.content),
                   }}
@@ -167,9 +174,9 @@ export function ChatPanel() {
                         role="button"
                         tabIndex={0}
                         title={`Open ${c.label}`}
-                        onClick={() => setSelectedFile(c.file)}
+                        onClick={() => openFileAt(c.file, c.line, c.endLine)}
                         onKeyDown={(event) => {
-                          if (event.key === "Enter" || event.key === " ") setSelectedFile(c.file);
+                          if (event.key === "Enter" || event.key === " ") openFileAt(c.file, c.line, c.endLine);
                         }}
                         className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-indigo-500/10 border border-indigo-500/25 text-[10px] font-mono text-indigo-300 hover:bg-indigo-500/20 cursor-pointer transition-colors"
                       >

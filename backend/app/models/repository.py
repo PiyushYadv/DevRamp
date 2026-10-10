@@ -46,3 +46,7 @@ class Repository(Base):
     last_analyzed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
 
     users: Mapped[List["UserRepositoryAccess"]] = relationship(back_populates="repository")
+
+    @property
+    def indexed_file_count(self) -> int:
+        return len(self.indexed_paths or [])

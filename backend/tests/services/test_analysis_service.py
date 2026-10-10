@@ -169,3 +169,19 @@ def test_results_are_cached_per_commit(tmp_path):
     first = analyze(tmp_path)
     write_repo(tmp_path, {"requirements.txt": "flask\n"})
     assert analyze(tmp_path) is first
+
+
+def test_plain_html_site_is_detected_as_static_frontend(tmp_path):
+    write_repo(tmp_path, {
+        "index.html": "<script src='script.js'></script>",
+        "style.css": "body {}",
+        "script.js": "const open = function () {};\nbtn.addEventListener('click', open);\n",
+    })
+    result = analyze(tmp_path, name="landing")
+    arch = result["architecture"]
+    assert arch["tags"] == ["Static site", "HTML", "CSS", "JavaScript"]
+    assert arch["summary"].startswith("Static website written in plain HTML, CSS and JavaScript")
+    assert "  client -->|HTTPS| web0" in arch["mermaid"]
+    assert '  web0["Web App<br/><small>Static site</small>"]' in arch["mermaid"]
+    assert arch["quickStart"][-1] == {"command": "npx serve .", "comment": "serve"}
+    assert result["setup"]["prerequisites"][0]["name"] == "Modern browser"

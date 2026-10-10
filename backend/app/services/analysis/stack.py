@@ -41,13 +41,17 @@ SERVICES = {
     "google-generativeai": "Google Gemini", "google-genai": "Google Gemini", "@google/generative-ai": "Google Gemini",
     "@google/genai": "Google Gemini", "firebase": "Firebase", "firebase-admin": "Firebase",
     "@supabase/supabase-js": "Supabase", "supabase": "Supabase", "sentry-sdk": "Sentry", "@sentry/node": "Sentry",
-    "twilio": "Twilio", "sendgrid": "SendGrid", "@sendgrid/mail": "SendGrid", "gitpython": "GitHub",
+    "twilio": "Twilio", "sendgrid": "SendGrid", "nodemailer": "Nodemailer", "@sendgrid/mail": "SendGrid", "gitpython": "GitHub",
     "@octokit/rest": "GitHub", "pygithub": "GitHub",
 }
 AUTH = {
     "pyjwt": "JWT", "python-jose": "JWT", "jsonwebtoken": "JWT", "jose": "JWT",
     "passport": "Passport", "next-auth": "NextAuth", "@auth/core": "Auth.js", "django-allauth": "allauth",
     "authlib": "OAuth", "flask-login": "Flask-Login", "@clerk/clerk-react": "Clerk", "@auth0/auth0-react": "Auth0",
+}
+VIEW_ENGINES = {
+    "pug": "Pug", "ejs": "EJS", "express-handlebars": "Handlebars", "hbs": "Handlebars", "nunjucks": "Nunjucks",
+    "jinja2": "Jinja", "mako": "Mako",
 }
 # docker-compose image base name (registry/owner and tag stripped) -> database / service
 COMPOSE_IMAGES = {
@@ -73,7 +77,7 @@ class Component:
     """One deployable unit, identified by its manifest's directory ('' for the repository root)."""
 
     path: str
-    ecosystem: str  # "node" | "python"
+    ecosystem: str  # "node" | "python" | "static" (plain HTML/CSS/JS, no package manifest)
     packages: set[str] = field(default_factory=set)
     scripts: dict[str, str] = field(default_factory=dict)
     package_manager: str = "npm"
@@ -89,6 +93,8 @@ class Component:
 
     @property
     def framework(self) -> str | None:
+        if self.ecosystem == "static":
+            return "Static site"
         return self._first(FULLSTACK_FRAMEWORKS) or self._first(BACKEND_FRAMEWORKS) or self._first(FRONTEND_FRAMEWORKS)
 
     @property
@@ -97,6 +103,8 @@ class Component:
 
     @property
     def kind(self) -> str:
+        if self.ecosystem == "static":
+            return "frontend"
         if self._first(FULLSTACK_FRAMEWORKS):
             return "fullstack"
         if self._first(BACKEND_FRAMEWORKS):
@@ -119,6 +127,7 @@ class StackProfile:
     orms: list[str]
     services: list[str]
     auth: list[str]
+    view_engines: list[str]
     has_compose: bool
     env_files: list[str]
     languages: list[str]
@@ -271,6 +280,11 @@ def detect_stack(snapshot: RepoSnapshot) -> StackProfile:
     # A root package.json that only orchestrates sub-packages (workspaces, lint tooling) is not a component
     if len(components) > 1:
         components = [c for c in components if c.path or c.kind != "library" or c.ecosystem == "python"]
+    # No manifest at all, but an index.html: a hand-written static website
+    if not components:
+        pages = [p for p in snapshot.find("index.html", max_depth=1) if is_app_manifest(p)]
+        if pages:
+            components.append(Component(parent_dir(pages[0]), "static", package_manager=""))
     components.sort(key=lambda c: ({"frontend": 0, "fullstack": 1, "backend": 2, "library": 3}[c.kind], c.path))
 
     def collect(catalog: dict[str, str]) -> list[str]:
@@ -291,6 +305,8 @@ def detect_stack(snapshot: RepoSnapshot) -> StackProfile:
         orms=collect(ORMS),
         services=services,
         auth=collect(AUTH),
+        # Flask/Django bundle Jinja/DTL, so only count an explicit templating dependency on other stacks
+        view_engines=collect(VIEW_ENGINES) if not any(c.framework in ("Flask", "Django") for c in components) else [],
         has_compose=has_compose,
         env_files=env_files,
         languages=_ordered(c.language for c in components),

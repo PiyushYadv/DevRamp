@@ -1,5 +1,6 @@
 import asyncio
 import json
+import logging
 import re
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
@@ -10,6 +11,10 @@ from app.config import settings
 
 MAX_ATTEMPTS = 3
 RETRY_BACKOFF_SECONDS = 1.0
+# The primary model occasionally stalls before sending anything; fail over quickly instead of after 60s
+PRIMARY_READ_TIMEOUT_SECONDS = 20.0
+
+logger = logging.getLogger(__name__)
 
 
 class LLMError(RuntimeError):
@@ -64,9 +69,11 @@ class GeminiChatClient:
         for attempt in range(MAX_ATTEMPTS):
             model = self.model if attempt == 0 else self.fallback_model
             url = f"/models/{model}:streamGenerateContent"
+            timeout = httpx.Timeout(60.0, connect=10.0, read=PRIMARY_READ_TIMEOUT_SECONDS) if attempt == 0 else None
             try:
                 async with gemini_http_client().stream(
                     "POST", url, params={"alt": "sse"}, json=body, headers={"x-goog-api-key": self.api_key},
+                    **({"timeout": timeout} if timeout else {}),
                 ) as response:
                     if response.status_code != 200:
                         raise _error_for(response.status_code, (await response.aread()).decode(errors="replace"))
@@ -89,6 +96,8 @@ class GeminiChatClient:
                     if isinstance(e, LLMError):
                         raise
                     raise LLMError("Could not reach Gemini. Please try again.") from e
+                logger.warning("Gemini %s attempt %d failed (%s: %s); retrying with %s", model, attempt + 1,
+                               type(e).__name__, e, self.fallback_model)
                 await asyncio.sleep(RETRY_BACKOFF_SECONDS * (attempt + 1))
 
 

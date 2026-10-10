@@ -10,6 +10,12 @@ IGNORED_DIRS = {
 }
 MAX_FILE_BYTES = 512 * 1024  # skip generated / vendored blobs
 MAX_CHUNK_LINES = 150  # larger definitions are split along statement boundaries
+# Build output that ships next to sources (Parcel/webpack bundles, minified vendor files, type stubs)
+GENERATED_SUFFIXES = (".min.js", ".d.ts", ".bundle.js", ".chunk.js", ".min.mjs")
+MINIFIED_LINE_LENGTH = 1000
+MINIFIED_AVERAGE_LINE_LENGTH = 200
+MINIFIED_MIN_BYTES = 20_000  # small hand-written files can still be one long line (e.g. dense JSX)
+TRIVIAL_TOP_LEVEL_TYPES = {"import_statement", "import_from_statement", "future_import_statement", "comment", "hash_bang_line"}
 
 
 class ASTChunker:
@@ -38,7 +44,7 @@ class ASTChunker:
             dirs[:] = sorted(d for d in dirs if d not in IGNORED_DIRS and not d.startswith("."))
 
             for file in sorted(files):
-                if file.endswith((".min.js", ".d.ts")):
+                if file.endswith(GENERATED_SUFFIXES) or f"{file}.map" in files:
                     continue
                 parser, lang_name = get_parser_and_lang(os.path.splitext(file)[1])
                 if not parser:
@@ -52,6 +58,8 @@ class ASTChunker:
                 rel_path = os.path.relpath(file_path, repo_path).replace("\\", "/")
                 with open(file_path, "rb") as f:
                     source = f.read()
+                if _looks_generated(source):
+                    continue
 
                 chunks.extend(self.chunk_source(source, parser, lang_name, repo_id, rel_path, commit_sha))
 
@@ -64,12 +72,34 @@ class ASTChunker:
         tree = parser.parse(source)
         ctx = _FileContext(source, lang_name, repo_id, rel_path, commit_sha)
         chunks = self._traverse_and_extract(tree.root_node, ctx, parent_symbol=None)
+        # Top-level statements outside any definition (event wiring, app setup, route registration, scripts)
+        chunks.extend(self._module_code_chunks(tree.root_node, ctx, chunks))
+        return sorted(chunks, key=lambda c: (c.start_line, c.end_line))
 
-        # Files with only top-level statements (scripts, configs, entrypoints) still get a module chunk
-        if not chunks and source.strip():
-            root = tree.root_node
-            chunks.extend(self._split_definition(root, root, ctx, "module", None))
-        return chunks
+    def _module_code_chunks(self, root: Node, ctx: "_FileContext", extracted: list[SemanticChunk]) -> list[SemanticChunk]:
+        """Group consecutive top-level statements that no extracted definition covers into module chunks."""
+        covered_lines = {line for c in extracted for line in range(c.start_line, c.end_line + 1)}
+
+        def is_covered(node: Node) -> bool:
+            lines = range(node.start_point.row + 1, node.end_point.row + 2)
+            return sum(line in covered_lines for line in lines) * 2 >= len(lines)
+
+        runs: list[list[Node]] = [[]]
+        for statement in root.named_children:
+            if is_covered(statement):
+                runs.append([])
+                continue
+            run = runs[-1]
+            if run and statement.end_point.row - run[0].start_point.row + 1 > MAX_CHUNK_LINES:
+                runs.append(run := [])
+            run.append(statement)
+
+        return [
+            ctx.make_chunk(run[0], run[-1], "module", None)
+            for run in runs
+            # Import blocks and stray comments add noise without explaining behaviour
+            if not all(_is_trivial_statement(n) for n in run)
+        ]
 
     def _traverse_and_extract(self, node: Node, ctx: "_FileContext", parent_symbol: str | None) -> list[SemanticChunk]:
         leaf_types = self.LEAF_NODE_TYPES[ctx.lang_name]
@@ -165,6 +195,24 @@ class ASTChunker:
         if name_node is None:
             return None
         return source[name_node.start_byte:name_node.end_byte].decode("utf-8", errors="replace")
+
+
+def _looks_generated(source: bytes) -> bool:
+    """Bundler/minifier output: source-map trailer or minified line lengths. It would swamp retrieval."""
+    if b"sourceMappingURL=" in source[-1024:]:
+        return True
+    if len(source) < MINIFIED_MIN_BYTES:
+        return False
+    lines = source.splitlines() or [b""]
+    longest = max(len(line) for line in lines)
+    return longest > MINIFIED_LINE_LENGTH and len(source) / len(lines) > MINIFIED_AVERAGE_LINE_LENGTH
+
+
+def _is_trivial_statement(node: Node) -> bool:
+    if node.type in TRIVIAL_TOP_LEVEL_TYPES:
+        return True
+    # Module docstrings and directives such as "use strict"
+    return node.type == "expression_statement" and node.named_child_count == 1 and node.named_children[0].type == "string"
 
 
 def _line_count(node: Node) -> int:

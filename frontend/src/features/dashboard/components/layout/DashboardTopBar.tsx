@@ -2,12 +2,14 @@ import { useEffect, useRef, useState } from "react";
 import { ExternalLink, Github, Home, LogOut, Terminal } from "lucide-react";
 import { useNavigate } from "react-router";
 import { useDashboard } from "../../context/DashboardContext";
+import { useRepository } from "../../hooks/useRepository";
 import { getCurrentUser, logout } from "../../../../lib/api/auth";
 
 export function DashboardTopBar() {
   const navigate = useNavigate();
   const { setHasRepo, setRepoId, setRepoName, setSelectedFile, setSelectedModule } = useDashboard();
-  const { hasRepo } = useDashboard();
+  const { hasRepo, repoId } = useDashboard();
+  const { data: repository } = useRepository(hasRepo ? repoId || null : null);
   const user = getCurrentUser();
   const [profileOpen, setProfileOpen] = useState(false);
   const profileRef = useRef<HTMLDivElement>(null);
@@ -60,7 +62,7 @@ export function DashboardTopBar() {
       <div className="ml-auto flex items-center gap-3">
         <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
         <span className="text-[10px] text-slate-500 font-mono">
-          47 files indexed
+          {repository ? `${repository.indexedFiles} files indexed` : "No repository indexed"}
         </span>
         <div ref={profileRef} className="relative">
           <button

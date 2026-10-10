@@ -27,6 +27,8 @@ class RepositoryResponse(CamelModel):
     updated: Optional[datetime] = Field(default=None, validation_alias="pushed_at")
     indexed: bool
     analysis_status: AnalysisStatus
+    indexed_files: int = Field(default=0, validation_alias="indexed_file_count")
+    chunk_count: int = 0
     current_commit: Optional[str] = None
     last_synced_at: Optional[datetime] = None
     last_analyzed_at: Optional[datetime] = None

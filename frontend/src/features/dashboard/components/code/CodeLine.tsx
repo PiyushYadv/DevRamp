@@ -13,6 +13,7 @@ export function CodeLine({
   const tokens = tokenize(line);
   return (
     <div
+      data-line={num}
       className={`flex group min-w-0 ${highlight ? "bg-indigo-500/[0.07] border-l-2 border-indigo-500" : "border-l-2 border-transparent hover:bg-white/[0.02]"}`}
     >
       <span className="w-11 text-right pr-4 py-0.5 text-[11px] font-mono text-slate-700 select-none shrink-0 group-hover:text-slate-500">

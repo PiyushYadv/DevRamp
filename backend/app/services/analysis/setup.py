@@ -10,6 +10,7 @@ CODE_ENV_PATTERNS = [
     (re.compile(r"""os\.environ\[\s*['"]([A-Z][A-Z0-9_]+)['"]\s*\]"""), True),
     (re.compile(r"""os\.(?:getenv|environ\.get)\(\s*['"]([A-Z][A-Z0-9_]+)['"]\s*\)"""), True),
     (re.compile(r"""os\.(?:getenv|environ\.get)\(\s*['"]([A-Z][A-Z0-9_]+)['"]\s*,"""), False),
+    (re.compile(r"""process\.env\.([A-Z][A-Z0-9_]+)\s*(?:\|\||\?\?)"""), False),  # has a fallback value
     (re.compile(r"""process\.env\.([A-Z][A-Z0-9_]+)"""), True),
     (re.compile(r"""import\.meta\.env\.([A-Z][A-Z0-9_]+)"""), False),
 ]
@@ -74,6 +75,8 @@ def prerequisites(profile: StackProfile) -> list[dict]:
         items.append({"name": "Node.js", "version": node.runtime_version or "LTS", "available": True})
         if node.package_manager != "npm":
             items.append({"name": node.package_manager, "version": "latest", "available": True})
+    if "static" in ecosystems:
+        items.append({"name": "Modern browser", "version": "any", "available": True})
     if python := ecosystems.get("python"):
         items.append({"name": "Python", "version": python.runtime_version or "≥ 3.10", "available": True})
         if python.package_manager in ("poetry", "uv", "pipenv"):
@@ -157,7 +160,10 @@ def quick_start(snapshot: RepoSnapshot, profile: StackProfile, repo: Repository)
         steps.append({"command": f"cd {directory} && {command}" if directory else command, "comment": "env"})
     # Backends first so the API is up before the frontend dev server starts
     for component in sorted(profile.components, key=lambda c: c.kind == "frontend"):
-        steps += _python_steps(snapshot, component) if component.ecosystem == "python" else _node_steps(component)
+        if component.ecosystem == "static":
+            steps.append({"command": _in(component, "npx serve ."), "comment": "serve"})
+        else:
+            steps += _python_steps(snapshot, component) if component.ecosystem == "python" else _node_steps(component)
     return steps
 
 

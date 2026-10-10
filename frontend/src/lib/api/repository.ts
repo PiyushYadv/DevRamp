@@ -69,14 +69,35 @@ export async function getGithubRepositories(): Promise<RepositoryCard[]> {
     }));
 }
 
-function formatRelativeTime(iso: string | null | undefined): string {
+export function formatRelativeTime(iso: string | null | undefined): string {
   if (!iso) return "recently";
-  const seconds = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
+  // The API stores UTC; timestamps without an offset must not be read as local time
+  const utc = /[zZ]|[+-]\d{2}:?\d{2}$/.test(iso) ? iso : `${iso}Z`;
+  const seconds = Math.max(0, (Date.now() - new Date(utc).getTime()) / 1000);
   const units: [number, string][] = [[31536000, "y"], [2592000, "mo"], [86400, "d"], [3600, "h"], [60, "m"]];
   for (const [size, label] of units) {
     if (seconds >= size) return `${Math.floor(seconds / size)}${label} ago`;
   }
   return "just now";
+}
+
+/** One workspace repository with indexing counts (GET /api/repository/{id}). */
+export function getRepository(repoId: string): Promise<WorkspaceRepository> {
+  if (USE_MOCK_API) {
+    const mock = MOCK_REPOSITORIES[0];
+    return Promise.resolve({
+      ...mock,
+      owner: mock.name.split("/")[0],
+      fullName: mock.name,
+      defaultBranch: "main",
+      analysisStatus: "completed",
+      indexedFiles: 47,
+      chunkCount: 312,
+      lastSyncedAt: new Date(Date.now() - 8 * 60_000).toISOString(),
+      onboardingProgress: { completed: 0, total: 0, percentage: 0 },
+    });
+  }
+  return apiFetch<WorkspaceRepository>(`/api/repository/${encodeURIComponent(repoId)}`);
 }
 
 export function getRepositoryTree(repoId: string) {

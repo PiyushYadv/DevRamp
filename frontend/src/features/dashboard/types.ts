@@ -15,6 +15,13 @@ export interface CheckItem {
   done: boolean;
 }
 
+/** Lines to reveal in the code viewer; `nonce` lets re-clicking the same citation scroll again */
+export interface LineTarget {
+  start: number;
+  end: number;
+  nonce: number;
+}
+
 export interface DashboardContextType {
   repoId: string;
   setRepoId: (v: string) => void;
@@ -24,6 +31,8 @@ export interface DashboardContextType {
   setRepoName: (v: string) => void;
   selectedFile: string | null;
   setSelectedFile: (v: string | null) => void;
+  selectedLines: LineTarget | null;
+  openFileAt: (path: string, start?: number, end?: number) => void;
   selectedModule: number | null;
   setSelectedModule: (v: number | null) => void;
   checklists: Record<number, CheckItem[]>;

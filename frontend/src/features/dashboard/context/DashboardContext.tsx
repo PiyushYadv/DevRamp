@@ -14,7 +14,10 @@ import {
 } from "../data/mockDashboardState";
 import { getChecklist } from "../../../lib/api/workspace";
 import { isGithubConnected } from "../../../lib/api/auth";
-import type { CheckItem, DashboardContextType } from "../types";
+import { USE_MOCK_API } from "../../../lib/api/config";
+import type { FileTreeNode } from "../../../lib/api/types";
+import { useRepositoryTree } from "../hooks/useRepositoryTree";
+import type { CheckItem, DashboardContextType, LineTarget } from "../types";
 
 const context = createContext<DashboardContextType>({
   repoId: "",
@@ -25,6 +28,8 @@ const context = createContext<DashboardContextType>({
   setRepoName: () => {},
   selectedFile: null,
   setSelectedFile: () => {},
+  selectedLines: null,
+  openFileAt: () => {},
   selectedModule: null,
   setSelectedModule: () => {},
   checklists: INITIAL_CHECKLISTS,
@@ -59,14 +64,40 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
 
   const [githubConnected, setGithubConnected] = useState(isGithubConnected);
   const [repositoryModalOpen, setRepositoryModalOpen] = useState(false);
-  const [selectedFile, setSelectedFile] = useState<string | null>(null);
+  const [selectedFile, setSelectedFileState] = useState<string | null>(null);
+  const [selectedLines, setSelectedLines] = useState<LineTarget | null>(null);
+  // Opening a file from the tree or a tab clears any citation highlight
+  const setSelectedFile = (path: string | null) => {
+    setSelectedFileState(path);
+    setSelectedLines(null);
+  };
+  const openFileAt = (path: string, start?: number, end?: number) => {
+    setSelectedFileState(path);
+    setSelectedLines(
+      start ? { start, end: Math.max(start, end ?? start), nonce: Date.now() } : null,
+    );
+  };
   const [selectedModule, setSelectedModule] = useState<number | null>(null);
   const [checklists, setChecklists] = useState<Record<number, CheckItem[]>>(
     {},
   );
-  const [indexedFiles, setIndexedFiles] = useState<Set<string>>(
-    INITIAL_INDEXED_FILES,
+  const [indexedFiles, setIndexedFiles] = useState<Set<string>>(() =>
+    USE_MOCK_API ? INITIAL_INDEXED_FILES : new Set(),
   );
+  const tree = useRepositoryTree(hasRepo && !USE_MOCK_API ? repoId || null : null);
+
+  // The tree API marks which files produced indexed chunks
+  useEffect(() => {
+    if (!tree.data) return;
+    const paths = new Set<string>();
+    const collect = (nodes: FileTreeNode[]) =>
+      nodes.forEach((node) => {
+        if (node.type === "file" && node.indexed) paths.add(node.path);
+        if (node.children) collect(node.children);
+      });
+    collect(tree.data);
+    setIndexedFiles(paths);
+  }, [tree.data]);
   const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
   const hydratedRepo = useRef<string | null>(null);
 
@@ -196,6 +227,8 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
       setRepoName,
       selectedFile,
       setSelectedFile,
+      selectedLines,
+      openFileAt,
       selectedModule,
       setSelectedModule,
       checklists,
@@ -217,6 +250,7 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
       hasRepo,
       repoName,
       selectedFile,
+      selectedLines,
       selectedModule,
       checklists,
       indexedFiles,

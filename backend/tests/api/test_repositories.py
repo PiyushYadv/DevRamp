@@ -137,6 +137,9 @@ def test_ingest_clones_parses_and_indexes_in_background(client, world):
     assert meta["create_access_token"]["repoId"] == repo_id
     assert "evil_link.py" not in str(vectors) and "vendored" not in str(vectors)
 
+    repo = client.get(f"/api/repository/{repo_id}", headers=headers).json()
+    assert repo["indexedFiles"] == 2 and repo["chunkCount"] == 3
+
 
 def test_tree_and_legacy_tree_route(client, world):
     headers = auth_headers(client)
