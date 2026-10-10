@@ -16,18 +16,18 @@ class RepositoryFileService:
     def __init__(self, cloner: RepositoryCloner | None = None):
         self.cloner = cloner or RepositoryCloner()
 
-    def _root(self, repo: Repository) -> str:
+    def root(self, repo: Repository) -> str:
         root = self.cloner.repo_path(repo.id)
         if not os.path.isdir(root):
             raise RepositoryNotReadyError()
         return os.path.realpath(root)
 
     def tree(self, repo: Repository) -> list[dict]:
-        return build_file_tree(self._root(repo), set(repo.indexed_paths or []))
+        return build_file_tree(self.root(repo), set(repo.indexed_paths or []))
 
     def resolve(self, repo: Repository, path: str) -> tuple[str, str] | None:
         """(normalized repo-relative path, absolute path) for a regular file inside the clone, else None."""
-        root = self._root(repo)
+        root = self.root(repo)
         rel_path = path.replace("\\", "/").strip("/")
         if not rel_path or any(part in ("", ".", "..", ".git") for part in rel_path.split("/")):
             return None

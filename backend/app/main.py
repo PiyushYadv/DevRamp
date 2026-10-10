@@ -9,7 +9,7 @@ from app.db.session import open_session
 from app import models  # noqa: F401  registers tables on Base.metadata
 from app.ai.http import close_gemini_http_client
 from app.ai.pinecone import close_vector_store, get_vector_store
-from app.api import auth, chat, github, ingestion, repositories
+from app.api import analysis, auth, chat, github, ingestion, onboarding, repositories
 from app.repositories.repository_repository import RepositoryRepository
 from app.utils.errors import register_exception_handlers
 
@@ -56,7 +56,9 @@ app.add_middleware(
 
 register_exception_handlers(app)
 
-for router in (auth.router, chat.router, github.router, ingestion.router, repositories.router):
+for router in (
+    auth.router, chat.router, github.router, ingestion.router, repositories.router, analysis.router, onboarding.router,
+):
     app.include_router(router, prefix=settings.API_V1_STR)
 
 @app.get("/health")
