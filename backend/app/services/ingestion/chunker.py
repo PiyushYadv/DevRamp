@@ -10,6 +10,8 @@ IGNORED_DIRS = {
 }
 MAX_FILE_BYTES = 512 * 1024  # skip generated / vendored blobs
 MAX_CHUNK_LINES = 150  # larger definitions are split along statement boundaries
+# Top-level code mixes unrelated concerns (modal wiring, scrolling, tabs...); smaller groups embed more precisely
+MAX_MODULE_CHUNK_LINES = 40
 # Build output that ships next to sources (Parcel/webpack bundles, minified vendor files, type stubs)
 GENERATED_SUFFIXES = (".min.js", ".d.ts", ".bundle.js", ".chunk.js", ".min.mjs")
 MINIFIED_LINE_LENGTH = 1000
@@ -90,7 +92,7 @@ class ASTChunker:
                 runs.append([])
                 continue
             run = runs[-1]
-            if run and statement.end_point.row - run[0].start_point.row + 1 > MAX_CHUNK_LINES:
+            if run and statement.end_point.row - run[0].start_point.row + 1 > MAX_MODULE_CHUNK_LINES:
                 runs.append(run := [])
             run.append(statement)
 

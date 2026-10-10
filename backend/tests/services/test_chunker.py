@@ -1,5 +1,5 @@
 from app.parsers.tree_sitter import get_parser_and_lang
-from app.services.ingestion.chunker import MAX_CHUNK_LINES, ASTChunker
+from app.services.ingestion.chunker import MAX_MODULE_CHUNK_LINES, ASTChunker
 
 
 def chunk(code: str, ext: str):
@@ -168,11 +168,11 @@ def test_top_level_code_between_definitions_is_indexed():
 
 
 def test_long_top_level_runs_split_at_statement_boundaries():
-    code = "".join(f"x{i} = {i}\n" for i in range(MAX_CHUNK_LINES + 20))
+    code = "".join(f"x{i} = {i}\n" for i in range(MAX_MODULE_CHUNK_LINES + 10))
     chunks = chunk(code, ".py")
 
     assert len(chunks) == 2
-    assert chunks[0].end_line == MAX_CHUNK_LINES and chunks[1].start_line == MAX_CHUNK_LINES + 1
+    assert chunks[0].end_line == MAX_MODULE_CHUNK_LINES and chunks[1].start_line == MAX_MODULE_CHUNK_LINES + 1
 
 
 def test_docstring_and_imports_only_file_has_no_chunks():

@@ -84,6 +84,28 @@ class IngestionService:
                 return repo, None  # already indexed or being indexed: the user just joins the workspace
         return repo, self._clone_and_parse(repo, token if access_type == "github" else None)
 
+    def sync(self, user: User, repo: Repository, force: bool = False) -> tuple[Repository, list[SemanticChunk] | None]:
+        """
+        Re-index when GitHub's HEAD moved past the indexed commit, the last run failed, or `force` is set
+        (e.g. after a chunker change). An unchanged HEAD only records the sync. Returns chunks to embed, if any.
+        """
+        if repo.analysis_status in ACTIVE_STATUSES:
+            return repo, None
+        token = decrypt_secret(user.github_access_token) if repo.is_private and user.github_access_token else None
+        url = f"https://github.com/{repo.full_name}.git"
+        indexed = repo.analysis_status == "completed" and os.path.isdir(self.cloner.repo_path(repo.id))
+        if indexed and not force:
+            try:
+                head = self.cloner.remote_head(url, token)
+            except ValueError as e:
+                # Leave the existing index untouched: it is still valid, just possibly behind
+                raise RepositoryIngestionError(str(e)) from e
+            if head == repo.current_commit:
+                repo.last_synced_at = _now()
+                self.repos.save(repo)
+                return repo, None
+        return repo, self._clone_and_parse(repo, token)
+
     def _lookup(self, ref: GitHubRepoRef, token: str | None) -> GitHubRepo | None:
         """GitHub metadata, or None if GitHub can't be asked (rate limit/outage); then only a public clone works."""
         try:

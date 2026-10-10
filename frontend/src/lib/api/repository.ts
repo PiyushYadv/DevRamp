@@ -69,16 +69,31 @@ export async function getGithubRepositories(): Promise<RepositoryCard[]> {
     }));
 }
 
+/** The API stores UTC; timestamps without an offset must not be read as local time. */
+export function parseApiDate(iso: string): Date {
+  return new Date(/[zZ]|[+-]\d{2}:?\d{2}$/.test(iso) ? iso : `${iso}Z`);
+}
+
 export function formatRelativeTime(iso: string | null | undefined): string {
   if (!iso) return "recently";
-  // The API stores UTC; timestamps without an offset must not be read as local time
-  const utc = /[zZ]|[+-]\d{2}:?\d{2}$/.test(iso) ? iso : `${iso}Z`;
-  const seconds = Math.max(0, (Date.now() - new Date(utc).getTime()) / 1000);
+  const seconds = Math.max(0, (Date.now() - parseApiDate(iso).getTime()) / 1000);
   const units: [number, string][] = [[31536000, "y"], [2592000, "mo"], [86400, "d"], [3600, "h"], [60, "m"]];
   for (const [size, label] of units) {
     if (seconds >= size) return `${Math.floor(seconds / size)}${label} ago`;
   }
   return "just now";
+}
+
+/** Pull the latest commit; the backend re-indexes only if it changed (POST /api/repository/{id}/sync). */
+export async function syncRepository(repoId: string, force = false): Promise<IngestRepositoryResponse> {
+  if (USE_MOCK_API) {
+    await new Promise((resolve) => setTimeout(resolve, 1200));
+    return { repoId, status: "completed", message: "Already up to date." };
+  }
+  return apiFetch<IngestRepositoryResponse>(
+    `/api/repository/${encodeURIComponent(repoId)}/sync${force ? "?force=true" : ""}`,
+    { method: "POST" },
+  );
 }
 
 /** One workspace repository with indexing counts (GET /api/repository/{id}). */

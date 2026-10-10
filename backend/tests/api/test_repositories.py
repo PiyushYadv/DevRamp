@@ -37,6 +37,8 @@ class World:
         self.upserts: dict[str, list[dict]] = {}
         self.embed_error: Exception | None = None
         self.user_repos: list[GitHubRepo] = []
+        self.remote_sha = "abc1234"
+        self.remote_error: Exception | None = None
 
 
 @pytest.fixture
@@ -98,7 +100,13 @@ def world(monkeypatch, tmp_path):
     monkeypatch.setattr(ingestion_service, "GitHubClient", FakeGitHub)
     monkeypatch.setattr(github_repositories, "GitHubClient", FakeGitHub)
     monkeypatch.setattr(RepositoryCloner, "clone_repo", fake_clone)
-    monkeypatch.setattr(RepositoryCloner, "get_repo_metadata", lambda self, path: {"commit_sha": "abc1234", "default_branch": "main"})
+    monkeypatch.setattr(RepositoryCloner, "get_repo_metadata", lambda self, path: {"commit_sha": w.remote_sha, "default_branch": "main"})
+
+    def fake_remote_head(self, url, access_token=None):
+        if w.remote_error:
+            raise w.remote_error
+        return w.remote_sha
+    monkeypatch.setattr(RepositoryCloner, "remote_head", fake_remote_head)
     monkeypatch.setattr(ingestion_service, "get_embedder", FakeEmbedder)
     monkeypatch.setattr(ingestion_service, "get_vector_store", FakeStore)
     return w
@@ -298,3 +306,47 @@ def test_github_repositories_list_and_access_selection(client, world, db_session
     assert listing["octo/demo"]["indexed"] is True and listing["octo/demo"]["repoId"] == repo_id
     assert listing["octo/demo"]["selected"] is False
     assert listing["octo/other"]["selected"] is True and listing["octo/other"]["repoId"] is None
+
+
+def test_sync_is_a_no_op_when_head_unchanged(client, world):
+    headers = auth_headers(client)
+    repo_id = ingest(client, headers).json()["repoId"]
+
+    res = client.post(f"/api/repository/{repo_id}/sync", headers=headers)
+
+    assert res.status_code == 200
+    assert res.json()["message"] == "Already up to date at abc1234."
+    assert len(world.clones) == 1  # no re-clone
+    assert res.json()["repository"]["lastSyncedAt"] is not None
+
+
+def test_sync_reindexes_new_commit_or_when_forced(client, world):
+    headers = auth_headers(client)
+    repo_id = ingest(client, headers).json()["repoId"]
+
+    world.remote_sha = "def5678"
+    res = client.post(f"/api/repository/{repo_id}/sync", headers=headers).json()
+    assert res["message"] == "Re-indexing the latest commit."
+    status = client.get(f"/api/repository/{repo_id}", headers=headers).json()
+    assert status["currentCommit"] == "def5678" and status["analysisStatus"] == "completed"
+    assert len(world.clones) == 2
+
+    res = client.post(f"/api/repository/{repo_id}/sync?force=true", headers=headers).json()
+    assert res["message"] == "Re-indexing the latest commit." and len(world.clones) == 3
+
+
+def test_sync_keeps_index_when_github_unreachable(client, world):
+    headers = auth_headers(client)
+    repo_id = ingest(client, headers).json()["repoId"]
+
+    world.remote_error = ValueError("Couldn't reach the repository on GitHub.")
+    res = client.post(f"/api/repository/{repo_id}/sync", headers=headers)
+
+    assert res.status_code == 502
+    repo = client.get(f"/api/repository/{repo_id}", headers=headers).json()
+    assert repo["analysisStatus"] == "completed" and repo["indexed"] is True
+
+
+def test_sync_requires_access(client, world):
+    repo_id = ingest(client, auth_headers(client, "alice@example.com")).json()["repoId"]
+    assert client.post(f"/api/repository/{repo_id}/sync", headers=auth_headers(client, "bob@example.com")).status_code == 404

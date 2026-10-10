@@ -1,12 +1,20 @@
 import { useEffect, useRef, useState } from "react";
 import { Check, ChevronDown, Clock3, GitBranch, Plus, RefreshCw } from "lucide-react";
 import { useNavigate } from "react-router";
+import { useQueryClient } from "@tanstack/react-query";
 import { useDashboard } from "../../context/DashboardContext";
 import { PublicRepositoryModal } from "../repository/PublicRepositoryModal";
 import { ingestRepository } from "../../../../lib/api/ingest";
+import { parseApiDate, syncRepository } from "../../../../lib/api/repository";
+import { useRepository } from "../../hooks/useRepository";
 
 export function RepositorySwitcher() {
-  const { hasRepo, repoName, setHasRepo, setRepoId, setRepoName, lastSyncedAt, setLastSyncedAt } = useDashboard();
+  const { hasRepo, repoId, repoName, setHasRepo, setRepoId, setRepoName, lastSyncedAt, setLastSyncedAt } = useDashboard();
+  const queryClient = useQueryClient();
+  const { data: repository } = useRepository(hasRepo ? repoId || null : null);
+  const [syncMessage, setSyncMessage] = useState<string | null>(null);
+  const reindexing = repository?.analysisStatus === "processing" || repository?.analysisStatus === "queued";
+  const syncedAt = repository?.lastSyncedAt ?? lastSyncedAt;
   const navigate = useNavigate();
   const [syncing, setSyncing] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -22,11 +30,23 @@ export function RepositorySwitcher() {
   }, []);
 
   const handleSync = async () => {
-    if (!repoName || syncing) return;
+    if (!repoId || syncing || reindexing) return;
     setSyncing(true);
+    setSyncMessage(null);
     try {
-      await new Promise((resolve) => setTimeout(resolve, 1200));
-      setLastSyncedAt(new Date().toISOString());
+      const result = await syncRepository(repoId);
+      // Seeding the cache with the new status starts polling while a re-index runs
+      if (result.repository) queryClient.setQueryData(["repository", repoId], result.repository);
+      setLastSyncedAt(result.repository?.lastSyncedAt ?? new Date().toISOString());
+      setSyncMessage(result.message ?? null);
+    } catch (err) {
+      let message = err instanceof Error ? err.message : "Sync failed.";
+      try {
+        message = (JSON.parse(message) as { detail?: string }).detail ?? message;
+      } catch {
+        // plain-text error body
+      }
+      setSyncMessage(message);
     } finally {
       setSyncing(false);
     }
@@ -80,12 +100,12 @@ export function RepositorySwitcher() {
         )}
       </div>
 
-      <button onClick={handleSync} disabled={syncing} className="mt-2 w-full flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md border border-white/[0.06] hover:border-indigo-500/30 hover:bg-indigo-500/[0.05] disabled:opacity-60 text-[11px] text-slate-400 hover:text-indigo-300 transition-all">
-        <RefreshCw className={`w-3 h-3 ${syncing ? "animate-spin" : ""}`} />
-        {syncing ? "Checking repository..." : "Sync Repository"}
+      <button onClick={handleSync} disabled={syncing || reindexing} className="mt-2 w-full flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md border border-white/[0.06] hover:border-indigo-500/30 hover:bg-indigo-500/[0.05] disabled:opacity-60 text-[11px] text-slate-400 hover:text-indigo-300 transition-all">
+        <RefreshCw className={`w-3 h-3 ${syncing || reindexing ? "animate-spin" : ""}`} />
+        {syncing ? "Checking repository..." : reindexing ? "Re-indexing..." : "Sync Repository"}
       </button>
       <div className="flex items-center gap-1.5 mt-2 px-1 text-[9px] text-slate-600">
-        {lastSyncedAt ? <><Clock3 className="w-2.5 h-2.5" /> Last synced {new Date(lastSyncedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</> : "Repository connected"}
+        {syncMessage && !reindexing ? syncMessage : syncedAt ? <><Clock3 className="w-2.5 h-2.5" /> Last synced {parseApiDate(syncedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</> : "Repository connected"}
       </div>
       <PublicRepositoryModal open={publicRepoModalOpen} onClose={() => setPublicRepoModalOpen(false)} onConnect={handlePublicRepositoryConnect} />
     </div>

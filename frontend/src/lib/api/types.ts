@@ -74,6 +74,7 @@ export interface IngestRepositoryResponse {
   repoId: string;
   status: "queued" | "processing" | "completed" | "failed";
   message?: string;
+  repository?: WorkspaceRepository;
 }
 export interface LoginPayload {
   email: string;
